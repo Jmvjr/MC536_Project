@@ -1,0 +1,6 @@
+CREATE TABLE SAEB(
+	id_saeb INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	nota_mat REAL,
+	nota_port REAL,
+	nota_padrao REAL
+);

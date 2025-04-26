@@ -1,0 +1,6 @@
+CREATE TABLE UF(
+	id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	sigla_uf VARCHAR(2),
+	nome VARCHAR(100),
+    qtd_habitantes INT
+);

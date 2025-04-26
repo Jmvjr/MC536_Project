@@ -1,0 +1,106 @@
+-- Criando a Tabela UF.
+DROP TABLE IF EXISTS UF CASCADE;
+
+CREATE TABLE UF(
+	id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	sigla_uf VARCHAR(2) UNIQUE NOT NULL,
+	nome VARCHAR(100) NOT NULL,
+    qtd_habitantes INT CHECK(qtd_habitantes >= 0)
+);
+
+-- Criando a Tabela MUNICIPIO
+DROP TABLE IF EXISTS MUNICIPIO CASCADE;
+
+CREATE TABLE MUNICIPIO(
+	id_municipio INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	id_uf INT NOT NULL REFERENCES UF (id) ON DELETE CASCADE,
+	nome_municipio VARCHAR(100) NOT NULL,
+	qtd_IES INT CHECK (qtd_IES >= 0),
+	qtd_ESCOLAS INT (qtd_ESCOLAS >= 0),
+	media_ideb REAL,
+	media_saeb REAL,
+	media_enade REAL,
+	total_participantes INT CHECK (total_participantes >= 0)
+);
+
+-- Criando Tabela IDEB
+DROP TABLE IF EXISTS IDEB CASCADE;
+
+CREATE TABLE IDEB(
+	id_ideb INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	rend_1 REAL,
+	rend_2 REAL,
+	rend_3 REAL,
+	rend_4 REAL,
+	ind_rend REAL,
+	nota_ideb REAL
+);
+
+-- Criando TABELA ENADE
+DROP TABLE IF EXISTS ENADE CASCADE;
+
+CREATE TABLE ENADE(
+	id_enade INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	total_inscritos INT CHECK (total_inscritos >= 0),
+	total_concluintes INT CHECK (total_concluintes >= 0),
+	nota_bruta_ce REAL,
+	nota_padronizada_ce REAL,
+	nota_bruta_fg REAL,
+	nota_padronizada_fg REAL,
+	nota_enade_continua REAL,
+	nota_enade_faixa REAL
+);
+
+-- Criando Tabela SAEB
+DROP TABLE IF EXISTS SAEB CASCADE;
+
+CREATE TABLE SAEB(
+	id_saeb INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	nota_mat REAL,
+	nota_port REAL,
+	nota_padrao REAL
+);
+
+-- Criando Tabela IES
+DROP TABLE IF EXISTS IES CASCADE;
+
+CREATE TABLE IES(
+	id_ies INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	id_municipio INT NOT NULL REFERENCES MUNICIPIO(id_municipio) ON DELETE CASCADE,
+	nome_ies VARCHAR(100) NOT NULL,
+	sigla_ies VARCHAR(20),
+	codigo_ies INT UNIQUE NOT NULL,
+	rede VARCHAR(100) NOT NULL
+);
+
+-- Criando Tabela ESCOLA
+DROP TABLE IF EXISTS ESCOLA CASCADE;
+
+CREATE TABLE ESCOLA(
+	id_escola INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	id_municipio INT NOT NULL REFERENCES MUNICIPIO(id_municipio) ON DELETE CASCADE,
+	nome_escola VARCHAR(100) NOT NULL,
+	cod_escola INTEGER UNIQUE NOT NULL,
+	rede VARCHAR(100) NOT NULL
+);
+
+-- Criando Tabela CURSO
+DROP TABLE IF EXISTS CURSO CASCADE;
+
+CREATE TABLE CURSO(
+	id_curso INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	id_IES INT NOT NULL REFERENCES IES(id_IES) ON DELETE CASCADE,
+	nome_curso VARCHAR(100) NOT NULL
+);
+
+-- Criando Tabela ANO
+DROP TABLE IF EXISTS ANO CASCADE; 
+
+CREATE TABLE ANO(
+	id_ano INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	id_curso INT NOT NULL REFERENCES curso(id_curso) ON DELETE CASCADE,
+	id_enade INT NOT NULL REFERENCES enade(id_enade) ON DELETE CASCADE,
+	id_saeb INT NOT NULL REFERENCES saeb(id_saeb) ON DELETE CASCADE,
+	id_ideb INT NOT NULL REFERENCES ideb(id_ideb) ON DELETE CASCADE,
+	ano INT NOT NULL
+);
