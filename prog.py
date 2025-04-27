@@ -147,17 +147,28 @@ def import_ANO():
 
 #function to import CSV data into the database
 def import_csv_enade(engine):
-    df2021 = pd.read_csv(enade_2021, sep=';', encoding='latin1')
-    df2022 = pd.read_csv(enade_2022, sep=';', encoding='latin1')    
-    df2023 = pd.read_csv(enade_2023, sep=';', encoding='latin1')
-    df = pd.concat([df2021, df2022, df2023], ignore_index=True)
-        
+    df2021 = pd.read_csv(enade_2021, encoding='latin1')
+    df2022 = pd.read_csv(enade_2022, encoding='latin1')    
+    df2023 = pd.read_csv(enade_2023,  encoding='latin1')
+    df = pd.concat([df2021, df2022, df2023])
+    
+    #tratando tabelas
+    mask = df['Conceito Enade (Faixa)'] == 'SC'
+    df = df[~mask]
+    mask = df['Sigla da UF'].isna()
+    df = df[~mask]
+    mask = df[['Nota Bruta - FG', 'Nota Padronizada - FG', 'Nota Bruta - CE', 'Nota Padronizada - CE', 'Conceito Enade (Contínuo)', 'Conceito Enade (Faixa)', 'Sigla da IES']].isna().any(axis=1)
+    df = df[~mask]
+    df = df.reset_index(drop=True)
+    
+    # Separando tabelas
     ano = df['Ano']
-    nome_curso = df['Área de Avaliação']
+    nome_curso = df['Área de Avaliação'].drop_duplicates().reset_index(drop=True)
     enade = df['Nº de Concluintes Inscritos','Nº  de Concluintes Participantes', 'Nota Bruta - FG', 'Nota Padronizada - FG', 'Nota Bruta - CE', 'Nota Padronizada - CE', 'Conceito Enade (Contínuo)', 'Conceito Enade (Faixa)']
-    ies = df['Nome da IES', 'Sigla da IES', 'Categoria Administrativa', 'Código da IES']
+    ies = df['Nome da IES', 'Sigla da IES', 'Categoria Administrativa', 'Código da IES'].drop_duplicates().reset_index(drop=True)
     municipio = df['Município do Curso'].drop_duplicates().reset_index(drop=True)
     uf = df['Sigla da UF'].drop_duplicates().reset_index(drop=True)
+    
     
     
 
