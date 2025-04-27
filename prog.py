@@ -1,10 +1,16 @@
+import pandas as pd
 from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+import os
 
 # Create base class for models
 Base = declarative_base()
-
+data_dir = 'data/'
+enade_2021 = os.path.join(data_dir, 'conceito_enade_2021.csv')
+enade_2022 = os.path.join(data_dir, 'conceito_enade_2022.csv')
+enade_2023 = os.path.join(data_dir, 'conceito_enade_2023.csv')
+ideb = os.path.join(data_dir, 'ideb_saeb_2017_2019_2021_2023.csv')
 # Define models corresponding to tables
 class UF(Base):
     __tablename__ = 'uf'
@@ -135,5 +141,30 @@ def create_database():
     
     return engine
 
+
+def import_ANO():
+
+
+#function to import CSV data into the database
+def import_csv_enade(engine):
+    df2021 = pd.read_csv(enade_2021, sep=';', encoding='latin1')
+    df2022 = pd.read_csv(enade_2022, sep=';', encoding='latin1')    
+    df2023 = pd.read_csv(enade_2023, sep=';', encoding='latin1')
+    df = pd.concat([df2021, df2022, df2023], ignore_index=True)
+        
+    ano = df['Ano']
+    nome_curso = df['Área de Avaliação']
+    enade = df['Nº de Concluintes Inscritos','Nº  de Concluintes Participantes', 'Nota Bruta - FG', 'Nota Padronizada - FG', 'Nota Bruta - CE', 'Nota Padronizada - CE', 'Conceito Enade (Contínuo)', 'Conceito Enade (Faixa)']
+    ies = df['Nome da IES', 'Sigla da IES', 'Categoria Administrativa', 'Código da IES']
+    municipio = df['Município do Curso'].drop_duplicates().reset_index(drop=True)
+    uf = df['Sigla da UF'].drop_duplicates().reset_index(drop=True)
+    
+    
+
+    
+    
+# Modify your main function to include Excel import
 if __name__ == "__main__":
     engine = create_database()
+    print("Database tables created successfully!")
+
