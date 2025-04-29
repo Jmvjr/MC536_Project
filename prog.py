@@ -164,8 +164,8 @@ def import_csv_enade(engine):
     # Separando tabelas
     ano = df['Ano']
     nome_curso = df['Área de Avaliação'].drop_duplicates().reset_index(drop=True)
-    enade = df['Nº de Concluintes Inscritos','Nº  de Concluintes Participantes', 'Nota Bruta - FG', 'Nota Padronizada - FG', 'Nota Bruta - CE', 'Nota Padronizada - CE', 'Conceito Enade (Contínuo)', 'Conceito Enade (Faixa)']
-    ies = df['Nome da IES', 'Sigla da IES', 'Categoria Administrativa', 'Código da IES'].drop_duplicates().reset_index(drop=True)
+    enade = df[['Nº de Concluintes Inscritos','Nº  de Concluintes Participantes', 'Nota Bruta - FG', 'Nota Padronizada - FG', 'Nota Bruta - CE', 'Nota Padronizada - CE', 'Conceito Enade (Contínuo)', 'Conceito Enade (Faixa)']]
+    ies = df[['Nome da IES', 'Sigla da IES', 'Categoria Administrativa', 'Código da IES']].drop_duplicates().reset_index(drop=True)
     municipio = df['Município do Curso'].drop_duplicates().reset_index(drop=True)
     uf = df['Sigla da UF'].drop_duplicates().reset_index(drop=True)
     
