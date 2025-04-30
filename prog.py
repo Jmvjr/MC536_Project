@@ -143,6 +143,8 @@ def create_database():
 
 
 def import_ANO():
+    # implementar depois
+    pass
 
 
 #function to import CSV data into the database
@@ -170,7 +172,27 @@ def import_csv_enade(engine):
     uf = df['Sigla da UF'].drop_duplicates().reset_index(drop=True)
     
     
-    
+def import_csv_ideb(engine):
+    # Lê o CSV com encoding padrão
+    df = pd.read_csv(ideb, encoding='latin1')
+
+    # Tratamento de dados
+    df = df.dropna(subset=[
+        'Ano', 'UF', 'Município', 
+        'nota_mat', 'nota_port', 'nota_padrao',
+        'rend_1', 'rend_2', 'rend_3', 'rend_4', 'ind_rend', 'nota_ideb'
+    ])
+
+    df = df.reset_index(drop=True)
+
+    # Separando tabelas
+    ano = df['Ano'].drop_duplicates().reset_index(drop=True)
+    saeb = df[['nota_mat', 'nota_port', 'nota_padrao']].drop_duplicates().reset_index(drop=True)
+    ideb_table = df[['rend_1', 'rend_2', 'rend_3', 'rend_4', 'ind_rend', 'nota_ideb']].drop_duplicates().reset_index(drop=True)
+    municipio = df[['Município', 'UF']].drop_duplicates().reset_index(drop=True)
+
+    return df, saeb, ideb_table, municipio
+
 
     
     
