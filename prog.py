@@ -130,7 +130,7 @@ class Ano(Base):
 def create_database():
     # Connection string format: postgresql://username:password@host:port/database
     # Replace with your actual PostgreSQL connection details
-    connection_string = "postgresql://mauricio:test@localhost:5432/mc536"
+    connection_string = "postgresql://felipe:senha@localhost:5432/P1"
     
     # Create engine
     engine = create_engine(connection_string)
@@ -140,6 +140,90 @@ def create_database():
     Base.metadata.create_all(engine)  # Create tables
     
     return engine
+
+def get_uf_full_name(sigla):
+    """Retorna o nome completo do estado com base na sigla"""
+    uf_dict = {
+        'AC': 'Acre',
+        'AL': 'Alagoas',
+        'AP': 'Amapá',
+        'AM': 'Amazonas',
+        'BA': 'Bahia',
+        'CE': 'Ceará',
+        'DF': 'Distrito Federal',
+        'ES': 'Espírito Santo',
+        'GO': 'Goiás',
+        'MA': 'Maranhão',
+        'MT': 'Mato Grosso',
+        'MS': 'Mato Grosso do Sul',
+        'MG': 'Minas Gerais',
+        'PA': 'Pará',
+        'PB': 'Paraíba',
+        'PR': 'Paraná',
+        'PE': 'Pernambuco',
+        'PI': 'Piauí',
+        'RJ': 'Rio de Janeiro',
+        'RN': 'Rio Grande do Norte',
+        'RS': 'Rio Grande do Sul',
+        'RO': 'Rondônia',
+        'RR': 'Roraima',
+        'SC': 'Santa Catarina',
+        'SP': 'São Paulo',
+        'SE': 'Sergipe',
+        'TO': 'Tocantins'
+    }
+    return uf_dict.get(sigla, sigla)
+
+def import_uf(engine, df_enade, df_ideb):
+    """
+    Importa dados para a tabela UF
+    
+    Args:
+        engine: Conexão com banco de dados
+        df_enade: DataFrame com dados do ENADE
+        df_ideb: DataFrame com dados do IDEB
+    """
+    print("Importando dados para a tabela UF...")
+    
+    # Combinar UFs dos dois DataFrames
+    ufs_enade = df_enade['Sigla da UF'].drop_duplicates().tolist()
+    ufs_ideb = df_ideb['UF'].drop_duplicates().tolist()
+    
+    # Unir as listas e eliminar duplicatas
+    all_ufs = list(set(ufs_enade + ufs_ideb))
+    
+    # Criar DataFrame para UFs
+    uf_df = pd.DataFrame({
+        'id': range(1, len(all_ufs) + 1),
+        'sigla_uf': all_ufs,
+        'nome': [get_uf_full_name(uf) for uf in all_ufs],
+        'qtd_habitantes': [0] * len(all_ufs)  # Placeholder, atualizar se tivermos dados populacionais
+    })
+    
+    # Criar sessão
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    
+    try:
+        # Inserir registros na tabela UF
+        for _, row in uf_df.iterrows():
+            uf = UF(
+                id=row['id'],
+                sigla_uf=row['sigla_uf'],
+                nome=row['nome'],
+                qtd_habitantes=row['qtd_habitantes']
+            )
+            session.add(uf)
+        
+        session.commit()
+        print(f"Importados {len(uf_df)} registros para a tabela UF.")
+    except Exception as e:
+        session.rollback()
+        print(f"Erro ao importar dados para a tabela UF: {e}")
+    finally:
+        session.close()
+    
+    return uf_df
 
 
 def import_ANO():
@@ -199,5 +283,7 @@ def import_csv_ideb(engine):
 # Modify your main function to include Excel import
 if __name__ == "__main__":
     engine = create_database()
+    df_ideb, saeb_df, ideb_df, municipios_df = import_csv_ideb(engine)
+
     print("Database tables created successfully!")
 
