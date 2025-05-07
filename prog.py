@@ -130,7 +130,7 @@ class Ano(Base):
 def create_database():
     # Connection string format: postgresql://username:password@host:port/database
     # Replace with your actual PostgreSQL connection details
-    connection_string = "postgresql://felipe:senha@localhost:5432/P1"
+    connection_string = "postgresql://postgres:1234@localhost:5432/mc536_project"
     
     # Create engine
     engine = create_engine(connection_string)
@@ -656,21 +656,23 @@ def import_csv_ideb(engine):
 # Modify your main function to include Excel import
 if __name__ == "__main__":
     engine = create_database()
-    df_ideb, saeb_df, ideb_df, municipios_df = import_csv_ideb(engine)
+    #df_ideb, saeb_df, ideb_df, municipios_df = import_csv_ideb(engine)
+    import_csv_ideb(engine)
 
     print("Database tables created successfully!")
     import_csv_enade(engine)
     import_csv_ideb(engine)
 
+    conn = psycopg2.connect(
+        dbname="mc536_project",
+        user="postgres",
+        password="1234",
+        host="localhost",
+        port="5432"
+    )
+    cur = conn.cursor()
+
     try:
-        conn = psycopg2.connection(
-            dbname="mc536",
-            user="felipe",
-            password="senha",
-            host="localhost",
-            port="5432"
-        )
-        cur = conn.cursor()
         # 1. Média ENADE por UF e ano
         cur.execute("""
             SELECT 
@@ -755,6 +757,9 @@ if __name__ == "__main__":
         for row in result_5:
             print(row)
 
+        cur.close()
+        conn.close()
+        print("Conexão encerrada com sucesso.")
     finally:
         cur.close()
         conn.close()
