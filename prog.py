@@ -679,7 +679,7 @@ def write_results_to_file(filename, header, rows):
 connection_string = "postgresql://postgres:1234@localhost:5432/mc536_project"
 
 if __name__ == "__main__":
-    criar_tabelas = True # Controle para não executar todo o programa
+    criar_tabelas = False # Controle para não executar todo o programa
 
     if criar_tabelas:
         engine = create_database()
@@ -802,6 +802,35 @@ if __name__ == "__main__":
             "numero_escolas_rede_uf.txt",
             "Número de escolas por rede e UF".strip().upper(),
             result_5
+        )
+
+        # 6. Cursos de ciência da computação com maior conceito enade
+        cur.execute(
+            '''
+            SELECT 
+                ies.nome_ies,
+                curso.nome_curso,
+                AVG(enade.nota_enade_continua) AS media_enade
+            FROM ano
+                JOIN curso ON ano.id_curso = curso.id_curso
+                JOIN ies ON ies.id_ies = curso.id_ies
+                JOIN enade ON ano.id_enade = enade.id_enade
+            WHERE  
+                curso.id_curso IS NOT NULL 
+                AND ies.id_ies IS NOT NULL
+                AND enade.id_enade IS NOT NULL
+                AND curso.nome_curso ILIKE '%computação%'
+            GROUP BY
+                ies.nome_ies, curso.nome_curso
+            ORDER BY
+                media_enade DESC;
+            '''
+        )
+        result_6 = cur.fetchall()
+        write_results_to_file(
+            "melhores_escola_comp.txt",
+            "melhores escolas de computação".strip().upper(),
+            result_6
         )
 
         cur.close()
