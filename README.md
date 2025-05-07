@@ -64,6 +64,17 @@ Após o final da execução teremos os resultados gravados em:
 * **SAEB: resultados do Sistema de Avaliação da Educação Básica**
 * **Ano: relaciona as entidades com seus respectivos anos de avaliação**
 
+## Detalhes:
+
+### Modelo Conceitual:
+<p align="center">
+    <img src="Conceptual_Diagram.png" alt="Modelo Conceitual do BD" width="700"/>
+</p>
+
+### Modelo Físico:
+<p align="center">
+    <img src="ERD_Diagram.png" alt="Modelo Físico do BD" width="700"/>
+</p>
 
 ## Requisitos
 
