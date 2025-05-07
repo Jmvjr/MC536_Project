@@ -14,7 +14,7 @@ Certifique-se de que você tem um banco de dados PostgreSQL disponível. Crie um
 
 Dentro de prog.py você deve alterar a conexão do psycopg2 que é definida logo após a execução da main do programa:
 
-'''python
+```python
     conn = psycopg2.connect(
         dbname="<database_name>",
         user="<user>",
@@ -22,12 +22,12 @@ Dentro de prog.py você deve alterar a conexão do psycopg2 que é definida logo
         host="<host>",
         port="<port>"
     )
-'''
+```
 
 Além disso, você deve alterar a string de conexão logo acima da função main do programa
-'''python
+```python
 connection_string = "postgresql://<user>:<password>@<host>:<port>/<database_name>"
-'''
+```
 
 #### 2: Execute o programa
 ```
