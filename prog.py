@@ -2,6 +2,7 @@ import pandas as pd
 from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+import psycopg2
 import os
 
 # Create base class for models
@@ -661,3 +662,100 @@ if __name__ == "__main__":
     import_csv_enade(engine)
     import_csv_ideb(engine)
 
+    try:
+        conn = psycopg2.connection(
+            dbname="mc536",
+            user="felipe",
+            password="senha",
+            host="localhost",
+            port="5432"
+        )
+        cur = conn.cursor()
+        # 1. Média ENADE por UF e ano
+        cur.execute("""
+            SELECT 
+                uf.nome AS nome_uf,
+                a.ano,
+                AVG(e.nota_enade_continua) AS media_nota_enade
+            FROM enade e
+            JOIN ano a ON e.id_enade = a.id_enade
+            JOIN curso c ON a.id_curso = c.id_curso
+            JOIN ies i ON c.id_ies = i.id_ies
+            JOIN municipio m ON i.id_municipio = m.id_municipio
+            JOIN uf ON m.id_uf = uf.id
+            GROUP BY uf.nome, a.ano
+            ORDER BY a.ano, media_nota_enade DESC;
+        """)
+        result_1 = cur.fetchall()
+        print("\n--- MÉDIA ENADE POR UF E ANO ---")
+        for row in result_1:
+            print(row)
+
+        # 2. Top 5 notas SAEB 2023
+        cur.execute("""
+            SELECT 
+                a.ano,
+                s.nota_mat,
+                s.nota_port
+            FROM saeb s
+            JOIN ano a ON s.id_saeb = a.id_saeb
+            WHERE a.ano = 2023
+            ORDER BY (s.nota_mat + s.nota_port)/2 DESC
+            LIMIT 5;
+        """)
+        result_2 = cur.fetchall()
+        print("\n--- TOP 5 SAEB 2023 ---")
+        for row in result_2:
+            print(row)
+
+        # 3. Evolução IDEB por curso
+        cur.execute("""
+            SELECT 
+                c.nome_curso,
+                a.ano,
+                AVG(i.nota_ideb) AS media_ideb
+            FROM ideb i
+            JOIN ano a ON i.id_ideb = a.id_ideb
+            JOIN curso c ON a.id_curso = c.id_curso
+            GROUP BY c.nome_curso, a.ano
+            ORDER BY c.nome_curso, a.ano;
+        """)
+        result_3 = cur.fetchall()
+        print("\n--- EVOLUÇÃO IDEB POR CURSO ---")
+        for row in result_3:
+            print(row)
+
+        # 4. Média SAEB por município
+        cur.execute("""
+            SELECT 
+                m.nome_municipio,
+                m.media_saeb
+            FROM municipio m
+            ORDER BY m.media_saeb DESC;
+        """)
+        result_4 = cur.fetchall()
+        print("\n--- MÉDIA SAEB POR MUNICÍPIO ---")
+        for row in result_4:
+            print(row)
+
+        # 5. Número de escolas por rede e UF
+        cur.execute("""
+            SELECT 
+                uf.nome AS nome_uf,
+                e.rede,
+                COUNT(*) AS total_escolas
+            FROM escola e
+            JOIN municipio m ON e.id_municipio = m.id_municipio
+            JOIN uf ON m.id_uf = uf.id
+            GROUP BY uf.nome, e.rede
+            ORDER BY uf.nome, total_escolas DESC;
+        """)
+        result_5 = cur.fetchall()
+        print("\n--- ESCOLAS POR REDE E UF ---")
+        for row in result_5:
+            print(row)
+
+    finally:
+        cur.close()
+        conn.close()
+        print("Conexão encerrada com sucesso.")
