@@ -7,11 +7,15 @@ import os
 
 # Create base class for models
 Base = declarative_base()
+
+# Defina os caminhos para csv dos dados a serem populados
 data_dir = 'data/'
 enade_2021 = os.path.join(data_dir, 'conceito_enade_2021.csv')
 enade_2022 = os.path.join(data_dir, 'conceito_enade_2022.csv')
 enade_2023 = os.path.join(data_dir, 'conceito_enade_2023.csv')
 ideb = os.path.join(data_dir, 'ideb_saeb_2017_2019_2021_2023.csv')
+
+# Criando as classes através da ORM
 class UF(Base):
     __tablename__ = 'uf'
     
@@ -105,7 +109,7 @@ class Curso(Base):
     __tablename__ = 'curso'
     
     id_curso = Column(Integer, primary_key=True)
-    id_IES = Column(Integer, ForeignKey('ies.id_ies'))
+    id_ies = Column(Integer, ForeignKey('ies.id_ies'))
     nome_curso = Column(String(100), nullable=False)
     
     ies = relationship("IES", back_populates="cursos")
@@ -128,10 +132,6 @@ class Ano(Base):
 
 # Function to create the database and tables
 def create_database():
-    # Connection string format: postgresql://username:password@host:port/database
-    # Replace with your actual PostgreSQL connection details
-    connection_string = "postgresql://postgres:1234@localhost:5432/mc536_project"
-    
     # Create engine
     engine = create_engine(connection_string)
     
@@ -141,8 +141,11 @@ def create_database():
     
     return engine
 
-def get_uf_full_name(sigla):
+def get_uf_full_name(sigla : str) -> str:
     """Retorna o nome completo do estado com base na sigla"""
+    if not isinstance(sigla, str):
+        raise TypeError("sigla em get_uf_full_name(sigla) deve ser do tipo str")
+
     uf_dict = {
         'AC': 'Acre',
         'AL': 'Alagoas',
@@ -172,7 +175,12 @@ def get_uf_full_name(sigla):
         'SE': 'Sergipe',
         'TO': 'Tocantins'
     }
-    return uf_dict.get(sigla, sigla)
+    
+    key = sigla.strip().upper()
+    try:
+        return uf_dict[key]
+    except KeyError:
+        raise ValueError(f"Sigla não contida em uf_dict: {sigla}")
 
 def import_uf(engine, df_enade, df_ideb):
     """
@@ -265,7 +273,7 @@ def import_csv_enade(engine):
             # Verificar se UF já existe
             uf_obj = UF(
                 sigla_uf=sigla_uf,
-                nome=f"Estado de {sigla_uf}",
+                nome=get_uf_full_name(sigla_uf),
                 qtd_habitantes=0  # Valor padrão
             )
             session.add(uf_obj)
@@ -301,6 +309,8 @@ def import_csv_enade(engine):
         ies_completo = df[['Código da IES', 'Nome da IES', 'Sigla da IES', 'Categoria Administrativa', 
                           'Município do Curso', 'Sigla da UF']]
 
+        # Evitar SettingWithCopyWarning
+        ies_completo = ies_completo.copy()
         # Criar uma chave composta para identificar combinações únicas de código IES e município
         ies_completo['chave_ies_municipio'] = ies_completo['Código da IES'].astype(str) + '_' + ies_completo['Município do Curso'] + '_' + ies_completo['Sigla da UF']
 
@@ -326,6 +336,8 @@ def import_csv_enade(engine):
                 session.flush()
                 # Usar uma chave composta para rastrear IES por código e município
                 ies_ids[(cod_ies, municipio_key)] = ies_obj.id_ies
+            else:
+                print(f"Chave não encontrada: {municipio_key}")
         
         # 4. Inserir Cursos
         print("Inserindo Cursos...")
@@ -339,7 +351,7 @@ def import_csv_enade(engine):
             # Verificar se existe a combinação IES-município
             if (cod_ies, municipio_key) in ies_ids:
                 curso_obj = Curso(
-                    id_IES=ies_ids[(cod_ies, municipio_key)],
+                    id_ies=ies_ids[(cod_ies, municipio_key)],
                     nome_curso=nome_curso
                 )
                 session.add(curso_obj)
@@ -652,16 +664,32 @@ def import_csv_ideb(engine):
         # Fechar a sessão
         session.close()
     
+'''
+    Usado para criar os arquivos .txt de saída.
+'''
+def write_results_to_file(filename, header, rows):
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(header + '\n')
+        for row in rows:
+            f.write(f"{row}\n")
     
-# Modify your main function to include Excel import
-if __name__ == "__main__":
-    engine = create_database()
-    #df_ideb, saeb_df, ideb_df, municipios_df = import_csv_ideb(engine)
-    import_csv_ideb(engine)
 
-    print("Database tables created successfully!")
-    import_csv_enade(engine)
-    import_csv_ideb(engine)
+# Formato da string de conexão: postgresql://username:password@host:port/database
+# substitua por seu respectivo <user>, <password>, <host>, <port>, <database_name>
+connection_string = "postgresql://postgres:1234@localhost:5432/mc536_project"
+
+if __name__ == "__main__":
+    criar_tabelas = True # Controle para não executar todo o programa
+
+    if criar_tabelas:
+        engine = create_database()
+        import_csv_enade(engine)
+        import_csv_ideb(engine)
+        print("Criação das tabelas feita com sucesso!")
+    else:
+        engine = create_engine(connection_string)
+    #df_ideb, saeb_df, ideb_df, municipios_df = import_csv_ideb(engine)
+    #import_csv_ideb(engine)
 
     conn = psycopg2.connect(
         dbname="mc536_project",
@@ -689,43 +717,58 @@ if __name__ == "__main__":
             ORDER BY a.ano, media_nota_enade DESC;
         """)
         result_1 = cur.fetchall()
-        print("\n--- MÉDIA ENADE POR UF E ANO ---")
-        for row in result_1:
-            print(row)
+        write_results_to_file(
+            'media_enade_up_ano.txt',
+            '------- MÉDIA ENADE POR UF E ANO --------',
+            result_1
+        ) 
 
         # 2. Top 5 notas SAEB 2023
         cur.execute("""
             SELECT 
                 a.ano,
                 s.nota_mat,
-                s.nota_port
-            FROM saeb s
-            JOIN ano a ON s.id_saeb = a.id_saeb
+                s.nota_port,
+                (s.nota_mat + s.nota_port)/2 AS media
+            FROM saeb AS s
+            JOIN ano AS a 
+                ON s.id_saeb = a.id_saeb
             WHERE a.ano = 2023
-            ORDER BY (s.nota_mat + s.nota_port)/2 DESC
+                AND s.nota_mat IS NOT NULL
+                AND s.nota_port IS NOT NULL
+            ORDER BY media DESC
             LIMIT 5;
         """)
         result_2 = cur.fetchall()
-        print("\n--- TOP 5 SAEB 2023 ---")
-        for row in result_2:
-            print(row)
+        write_results_to_file(
+            "top5_notas_saeb_2023.txt",
+            "TOP 5 SAEB - 2023",
+            result_2
+        )
 
-        # 3. Evolução IDEB por curso
+        # 3. Notas dos cursos avaliados pelo enade da unicamp
         cur.execute("""
-            SELECT 
-                c.nome_curso,
-                a.ano,
-                AVG(i.nota_ideb) AS media_ideb
-            FROM ideb i
-            JOIN ano a ON i.id_ideb = a.id_ideb
+        SELECT 
+            i.nome_ies,
+            c.nome_curso,
+            a.ano,
+            e.nota_enade_continua
+        FROM enade e
+            JOIN ano a ON e.id_enade = a.id_enade
             JOIN curso c ON a.id_curso = c.id_curso
-            GROUP BY c.nome_curso, a.ano
-            ORDER BY c.nome_curso, a.ano;
+            JOIN ies i ON i.id_ies = c.id_ies
+        WHERE 
+            i.nome_ies ILIKE '%campinas%'
+            AND i.nome_ies ILIKE '%estadual%'
+        GROUP BY c.nome_curso, a.ano, e.nota_enade_continua, i.nome_ies
+        ORDER BY i.nome_ies, c.nome_curso, a.ano;
         """)
         result_3 = cur.fetchall()
-        print("\n--- EVOLUÇÃO IDEB POR CURSO ---")
-        for row in result_3:
-            print(row)
+        write_results_to_file(
+            "notas_da_unicamp_enade.txt",
+            "notas unicamp dentro do enade".strip().upper(),
+            result_3
+        )
 
         # 4. Média SAEB por município
         cur.execute("""
@@ -736,9 +779,11 @@ if __name__ == "__main__":
             ORDER BY m.media_saeb DESC;
         """)
         result_4 = cur.fetchall()
-        print("\n--- MÉDIA SAEB POR MUNICÍPIO ---")
-        for row in result_4:
-            print(row)
+        write_results_to_file(
+            "media_saeb_municipio.txt",
+            "media saeb por municipio".strip().upper(),
+            result_4
+        )
 
         # 5. Número de escolas por rede e UF
         cur.execute("""
@@ -753,9 +798,11 @@ if __name__ == "__main__":
             ORDER BY uf.nome, total_escolas DESC;
         """)
         result_5 = cur.fetchall()
-        print("\n--- ESCOLAS POR REDE E UF ---")
-        for row in result_5:
-            print(row)
+        write_results_to_file(
+            "numero_escolas_rede_uf.txt",
+            "Número de escolas por rede e UF".strip().upper(),
+            result_5
+        )
 
         cur.close()
         conn.close()
