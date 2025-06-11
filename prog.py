@@ -4,79 +4,88 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 import psycopg2
 import os
+# Comentarios sobre mudanças a fazer no codigo:
+# [] Dentro da definicao da classe Municipio existe um TO-DO.
+
+# Remocoes:
+# (1) Removi o atributo qtd_habitantes de UF. Não temos esse dado.
+# (2) Removi os atributos derivados de Municipio para torna-los consultas SQL.
+# (3) 
 
 # Create base class for models
 Base = declarative_base()
 
 # Defina os caminhos para csv dos dados a serem populados
-data_dir = 'data/'
-enade_2021 = os.path.join(data_dir, 'conceito_enade_2021.csv')
-enade_2022 = os.path.join(data_dir, 'conceito_enade_2022.csv')
-enade_2023 = os.path.join(data_dir, 'conceito_enade_2023.csv')
-ideb = os.path.join(data_dir, 'ideb_saeb_2017_2019_2021_2023.csv')
+data_dir    = 'data/'
+enade_2021  = os.path.join(data_dir, 'conceito_enade_2021.csv')
+enade_2022  = os.path.join(data_dir, 'conceito_enade_2022.csv')
+enade_2023  = os.path.join(data_dir, 'conceito_enade_2023.csv')
+ideb        = os.path.join(data_dir, 'ideb_saeb_2017_2019_2021_2023.csv')
 
 # Criando as classes através da ORM
 class UF(Base):
     __tablename__ = 'uf'
     
-    id = Column(Integer, primary_key=True)
-    sigla_uf = Column(String(2))
-    nome = Column(String(100))
-    qtd_habitantes = Column(Integer)
+    id          = Column(Integer, primary_key=True)
+    sigla_uf    = Column(String(2))
+    nome        = Column(String(100))
     
-    municipios = relationship("Municipio", back_populates="uf")
+    municipios  = relationship("Municipio", back_populates="uf")
 
 class Municipio(Base):
+    # TO-DO: Verificar se atributos derivados podem se tornar consultas SQL relevantes.
     __tablename__ = 'municipio'
     
-    id_municipio = Column(Integer, primary_key=True)
-    id_uf = Column(Integer, ForeignKey('uf.id'))
-    nome_municipio = Column(String(100), nullable=False)
-    qtd_IES = Column(Integer)
-    qtd_ESCOLAS = Column(Integer)
-    media_ideb = Column(Float)
-    media_saeb = Column(Float)
-    media_enade = Column(Float)
-    total_participantes = Column(Integer)
-    
-    uf = relationship("UF", back_populates="municipios")
-    escolas = relationship("Escola", back_populates="municipio")
-    ies_list = relationship("IES", back_populates="municipio")
+    id      = Column(Integer, primary_key=True)
+    id_uf   = Column(Integer, ForeignKey('uf.id'))
+    nome    = Column(String(100), nullable=False)
+
+    uf          = relationship("UF",     back_populates="municipios")
+    escolas     = relationship("Escola", back_populates="municipio")
+    ies_list    = relationship("IES",    back_populates="municipio")
+
+    # TODAS ESSES ATRIBUTOS PODEM SER ADQUIRIDOS POR CONSULTAS SQL
+    #qtd_IES = Column(Integer)
+    #qtd_ESCOLAS = Column(Integer)
+    #media_ideb = Column(Float)
+    #media_saeb = Column(Float)
+    #media_enade = Column(Float)
+    #total_participantes = Column(Integer)
 
 class IDEB(Base):
     __tablename__ = 'ideb'
     
-    id_ideb = Column(Integer, primary_key=True)
-    rend_1 = Column(Float)
-    rend_2 = Column(Float)
-    rend_3 = Column(Float)
-    rend_4 = Column(Float)
-    ind_rend = Column(Float)
-    nota_ideb = Column(Float)
+    id_ideb     = Column(Integer, primary_key=True)
+    rend_1      = Column(Float)
+    rend_2      = Column(Float)
+    rend_3      = Column(Float)
+    rend_4      = Column(Float)
+    ind_rend    = Column(Float)
+    nota_ideb   = Column(Float)
     
     anos = relationship("Ano", back_populates="ideb")
 
 class ENADE(Base):
     __tablename__ = 'enade'
     
-    id_enade = Column(Integer, primary_key=True)
-    total_inscritos = Column(Integer)
-    total_concluintes = Column(Integer)
-    nota_bruta_ce = Column(Float)
+    id_enade            = Column(Integer, primary_key=True)
+    total_inscritos     = Column(Integer)
+    total_concluintes   = Column(Integer)
+    nota_bruta_ce       = Column(Float)
     nota_padronizada_ce = Column(Float)
-    nota_bruta_fg = Column(Float)
+    nota_bruta_fg       = Column(Float)
     nota_padronizada_fg = Column(Float)
     nota_enade_continua = Column(Float)
-    nota_enade_faixa = Column(Float)
+    nota_enade_faixa    = Column(Float)
     
     anos = relationship("Ano", back_populates="enade")
 
 class SAEB(Base):
     __tablename__ = 'saeb'
     
-    id_saeb = Column(Integer, primary_key=True)
-    nota_mat = Column(Float)
-    nota_port = Column(Float)
+    id_saeb     = Column(Integer, primary_key=True)
+    nota_mat    = Column(Float)
+    nota_port   = Column(Float)
     nota_padrao = Column(Float)
     
     anos = relationship("Ano", back_populates="saeb")
@@ -84,65 +93,75 @@ class SAEB(Base):
 class IES(Base):
     __tablename__ = 'ies'
     
-    id_ies = Column(Integer, primary_key=True)
-    id_municipio = Column(Integer, ForeignKey('municipio.id_municipio'))
-    nome_ies = Column(String(100), nullable=False)
-    sigla_ies = Column(String(20))
-    codigo_ies = Column(Integer, nullable=False)
-    rede = Column(String(100), nullable=False)
+    id_ies          = Column(Integer, primary_key=True)
+    id_municipio    = Column(Integer, ForeignKey('municipio.id_municipio'))
+    nome_ies        = Column(String(100), nullable=False)
+    sigla_ies       = Column(String(20))
+    codigo_ies      = Column(Integer, nullable=False)
+    rede            = Column(String(100), nullable=False)
     
-    municipio = relationship("Municipio", back_populates="ies_list")
-    cursos = relationship("Curso", back_populates="ies")
+    municipio   = relationship("Municipio", back_populates="ies_list")
+    cursos      = relationship("Curso", back_populates="ies")
 
 class Escola(Base):
     __tablename__ = 'escola'
     
-    id_escola = Column(Integer, primary_key=True)
-    id_municipio = Column(Integer, ForeignKey('municipio.id_municipio'))
-    nome_escola = Column(String(100), nullable=False)
-    cod_escola = Column(Integer, unique=True, nullable=False)
-    rede = Column(String(100), nullable=False)
+    id_escola       = Column(Integer, primary_key=True)
+    id_municipio    = Column(Integer, ForeignKey('municipio.id_municipio'))
+    nome_escola     = Column(String(100), nullable=False)
+    cod_escola      = Column(Integer, unique=True, nullable=False)
+    rede            = Column(String(100), nullable=False)
     
     municipio = relationship("Municipio", back_populates="escolas")
 
 class Curso(Base):
     __tablename__ = 'curso'
     
-    id_curso = Column(Integer, primary_key=True)
-    id_ies = Column(Integer, ForeignKey('ies.id_ies'))
-    nome_curso = Column(String(100), nullable=False)
+    id_curso        = Column(Integer, primary_key=True)
+    id_ies          = Column(Integer, ForeignKey('ies.id_ies'))
+    nome_curso      = Column(String(100), nullable=False)
     
-    ies = relationship("IES", back_populates="cursos")
-    anos = relationship("Ano", back_populates="curso")
+    ies     = relationship("IES", back_populates="cursos")
+    anos    = relationship("Ano", back_populates="curso")
 
+# Acho que essa entidade vai desaparecer.
 class Ano(Base):
     __tablename__ = 'ano'
     
-    id_ano = Column(Integer, primary_key=True)
-    id_curso = Column(Integer, ForeignKey('curso.id_curso'))
-    id_enade = Column(Integer, ForeignKey('enade.id_enade'))
-    id_saeb = Column(Integer, ForeignKey('saeb.id_saeb'))
-    id_ideb = Column(Integer, ForeignKey('ideb.id_ideb'))
-    ano = Column(Integer, nullable=False)
+    id_ano      = Column(Integer, primary_key=True)
+    id_curso    = Column(Integer, ForeignKey('curso.id_curso'))
+    id_enade    = Column(Integer, ForeignKey('enade.id_enade'))
+    id_saeb     = Column(Integer, ForeignKey('saeb.id_saeb'))
+    id_ideb     = Column(Integer, ForeignKey('ideb.id_ideb'))
+    ano         = Column(Integer, nullable=False)
     
-    curso = relationship("Curso", back_populates="anos")
-    enade = relationship("ENADE", back_populates="anos")
-    saeb = relationship("SAEB", back_populates="anos")
-    ideb = relationship("IDEB", back_populates="anos")
+    curso   = relationship("Curso", back_populates="anos")
+    enade   = relationship("ENADE", back_populates="anos")
+    saeb    = relationship("SAEB", back_populates="anos")
+    ideb    = relationship("IDEB", back_populates="anos")
 
 # Function to create the database and tables
+'''
+Funcao que cria as databases, necessita da connection_string para
+realizar a conexao com o pgAdmin.
+
+OBS:
+- Dropa todas as tabelas ja definidas.
+'''
 def create_database():
     # Create engine
     engine = create_engine(connection_string)
     
     # Create all tables
-    Base.metadata.drop_all(engine)  # Drop tables if they exist
-    Base.metadata.create_all(engine)  # Create tables
+    Base.metadata.drop_all(engine)      # Drop tables if they exist
+    Base.metadata.create_all(engine)    # Create tables
     
     return engine
 
+'''
+Funcao que retorna o nome da UF a partir da sua sigla.
+'''
 def get_uf_full_name(sigla : str) -> str:
-    """Retorna o nome completo do estado com base na sigla"""
     if not isinstance(sigla, str):
         raise TypeError("sigla em get_uf_full_name(sigla) deve ser do tipo str")
 
@@ -182,15 +201,15 @@ def get_uf_full_name(sigla : str) -> str:
     except KeyError:
         raise ValueError(f"Sigla não contida em uf_dict: {sigla}")
 
+"""
+Importa dados para a tabela UF
+
+Args:
+    engine: Conexão com banco de dados
+    df_enade: DataFrame com dados do ENADE
+    df_ideb: DataFrame com dados do IDEB
+"""
 def import_uf(engine, df_enade, df_ideb):
-    """
-    Importa dados para a tabela UF
-    
-    Args:
-        engine: Conexão com banco de dados
-        df_enade: DataFrame com dados do ENADE
-        df_ideb: DataFrame com dados do IDEB
-    """
     print("Importando dados para a tabela UF...")
     
     # Combinar UFs dos dois DataFrames
