@@ -1,3 +1,4 @@
 # ignora os .txt
 *.txt
+.vscode/
 Local.session.sql

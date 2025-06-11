@@ -68,10 +68,16 @@ Após o final da execução teremos os resultados gravados em:
 
 ### Modelo Conceitual:
 <p align="center">
-    <img src="Conceptual_Diagram.png" alt="Modelo Conceitual do BD" width="700"/>
+    <img src="Diagrama_ER.jpg" alt="Modelo Conceitual do BD" width="700"/>
 </p>
 
 ### Modelo Físico:
+Modelo físico projetado pelo Grupo:
+<p align="center">
+    <img src="Conceptual_Diagram.png" alt="Modelo Físico do BD" width="700"/>
+</p>
+
+Modelo físico fornecido pelo PG-Admin:
 <p align="center">
     <img src="ERD_Diagram.png" alt="Modelo Físico do BD" width="700"/>
 </p>
