@@ -74,7 +74,7 @@ Após o final da execução teremos os resultados gravados em:
 ### Modelo Físico:
 Modelo físico projetado pelo Grupo:
 <p align="center">
-    <img src="Conceptual_Diagram.png" alt="Modelo Físico do BD" width="700"/>
+    <img src="Diagrama_Relacional.jpg" alt="Modelo Físico do BD" width="700"/>
 </p>
 
 Modelo físico fornecido pelo PG-Admin:
