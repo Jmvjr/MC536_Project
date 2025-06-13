@@ -1,7 +1,6 @@
 import pandas as pd
 from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 import psycopg2
 import os
 # Comentarios sobre mudanças a fazer no codigo:
@@ -21,13 +20,17 @@ enade_2021  = os.path.join(data_dir, 'conceito_enade_2021.csv')
 enade_2022  = os.path.join(data_dir, 'conceito_enade_2022.csv')
 enade_2023  = os.path.join(data_dir, 'conceito_enade_2023.csv')
 ideb        = os.path.join(data_dir, 'ideb_saeb_2017_2019_2021_2023.csv')
+ID_GENERATOR = 0
 
 # Criando as classes através da ORM
 class UF(Base):
+    def __str__(self):
+        return f'id:{id}\n sigla:{self.sigla}\n nome:{self.nome}'
+
     __tablename__ = 'uf'
     
     id          = Column(Integer, primary_key=True, autoincrement=True)
-    sigla_uf    = Column(String(2), nullable=False, unique=True)
+    sigla       = Column(String(2), nullable=False, unique=True)
     nome        = Column(String(100), nullable=False, unique=True)
     
     uf_to_municipio  = relationship("Municipio", back_populates="municipio_to_uf")
@@ -91,6 +94,7 @@ class IDEB(Base):
     __tablename__ = 'ideb'
     
     id          = Column(Integer, primary_key=True)
+    id_escola   = Column(Integer, ForeignKey('escola.id'), nullable=False)
     ano         = Column(Integer, nullable=False)
     rend_1      = Column(Float)
     rend_2      = Column(Float)
@@ -127,7 +131,7 @@ class ENADE(Base):
     nota_enade_continua = Column(Float)
     nota_enade_faixa    = Column(Float)
     
-    enado_to_curso      = relationship("Curso", back_populates="curso_to_enade")
+    enade_to_curso      = relationship("Curso", back_populates="curso_to_enade")
 
 # Function to create the database and tables
 '''
@@ -300,6 +304,7 @@ def import_csv_enade(engine):
                 nome=get_uf_full_name(sigla_uf),
                 sigla=sigla_uf
             )
+            print(uf_obj)
             session.add(uf_obj)
             session.flush()
             uf_ids[sigla_uf] = uf_obj.id
@@ -318,7 +323,7 @@ def import_csv_enade(engine):
             session.add(municipio_obj)
             session.flush()
             # Usar um composto de cidade+UF como chave já que pode haver cidades homônimas
-            municipio_ids[f"{nome_municipio}_{sigla_uf}"] = municipio_obj.id_municipio
+            municipio_ids[f"{nome_municipio}_{sigla_uf}"] = municipio_obj.id
         
         # 3. Inserir IES
         print("Inserindo IES...")
@@ -374,7 +379,7 @@ def import_csv_enade(engine):
                 )
                 session.add(curso_obj)
                 session.flush()
-                curso_ids[cod_curso] = curso_obj.id_curso
+                curso_ids[cod_curso] = curso_obj.id
         
         # 5. Inserir dados ENADE
         print("Inserindo dados ENADE...")
@@ -697,137 +702,138 @@ if __name__ == "__main__":
     cur = conn.cursor()
 
     try:
+        print('Oi')
         # 1. Média ENADE por UF e ano
-        cur.execute("""
-            SELECT 
-                uf.nome AS nome_uf,
-                a.ano,
-                AVG(e.nota_enade_continua) AS media_nota_enade
-            FROM enade e
-            JOIN ano a ON e.id_enade = a.id_enade
-            JOIN curso c ON a.id_curso = c.id_curso
-            JOIN ies i ON c.id_ies = i.id_ies
-            JOIN municipio m ON i.id_municipio = m.id_municipio
-            JOIN uf ON m.id_uf = uf.id
-            GROUP BY uf.nome, a.ano
-            ORDER BY a.ano, media_nota_enade DESC;
-        """)
-        result_1 = cur.fetchall()
-        write_results_to_file(
-            'media_enade_up_ano.txt',
-            '------- MÉDIA ENADE POR UF E ANO --------',
-            result_1
-        ) 
+        #cur.execute("""
+            #SELECT 
+                #uf.nome AS nome_uf,
+                #a.ano,
+                #AVG(e.nota_enade_continua) AS media_nota_enade
+            #FROM enade e
+            #JOIN ano a ON e.id_enade = a.id_enade
+            #JOIN curso c ON a.id_curso = c.id_curso
+            #JOIN ies i ON c.id_ies = i.id_ies
+            #JOIN municipio m ON i.id_municipio = m.id_municipio
+            #JOIN uf ON m.id_uf = uf.id
+            #GROUP BY uf.nome, a.ano
+            #ORDER BY a.ano, media_nota_enade DESC;
+        #""")
+        #result_1 = cur.fetchall()
+        #write_results_to_file(
+            #'media_enade_up_ano.txt',
+            #'------- MÉDIA ENADE POR UF E ANO --------',
+            #result_1
+        #) 
 
-        # 2. Top 5 notas SAEB 2023
-        cur.execute("""
-            SELECT 
-                a.ano,
-                s.nota_mat,
-                s.nota_port,
-                (s.nota_mat + s.nota_port)/2 AS media
-            FROM saeb AS s
-            JOIN ano AS a 
-                ON s.id_saeb = a.id_saeb
-            WHERE a.ano = 2023
-                AND s.nota_mat IS NOT NULL
-                AND s.nota_port IS NOT NULL
-            ORDER BY media DESC
-            LIMIT 5;
-        """)
-        result_2 = cur.fetchall()
-        write_results_to_file(
-            "top5_notas_saeb_2023.txt",
-            "TOP 5 SAEB - 2023",
-            result_2
-        )
+        ## 2. Top 5 notas SAEB 2023
+        #cur.execute("""
+            #SELECT 
+                #a.ano,
+                #s.nota_mat,
+                #s.nota_port,
+                #(s.nota_mat + s.nota_port)/2 AS media
+            #FROM saeb AS s
+            #JOIN ano AS a 
+                #ON s.id_saeb = a.id_saeb
+            #WHERE a.ano = 2023
+                #AND s.nota_mat IS NOT NULL
+                #AND s.nota_port IS NOT NULL
+            #ORDER BY media DESC
+            #LIMIT 5;
+        #""")
+        #result_2 = cur.fetchall()
+        #write_results_to_file(
+            #"top5_notas_saeb_2023.txt",
+            #"TOP 5 SAEB - 2023",
+            #result_2
+        #)
 
-        # 3. Notas dos cursos avaliados pelo enade da unicamp
-        cur.execute("""
-        SELECT 
-            i.nome_ies,
-            c.nome_curso,
-            a.ano,
-            e.nota_enade_continua
-        FROM enade e
-            JOIN ano a ON e.id_enade = a.id_enade
-            JOIN curso c ON a.id_curso = c.id_curso
-            JOIN ies i ON i.id_ies = c.id_ies
-        WHERE 
-            i.nome_ies ILIKE '%campinas%'
-            AND i.nome_ies ILIKE '%estadual%'
-        GROUP BY c.nome_curso, a.ano, e.nota_enade_continua, i.nome_ies
-        ORDER BY i.nome_ies, c.nome_curso, a.ano;
-        """)
-        result_3 = cur.fetchall()
-        write_results_to_file(
-            "notas_da_unicamp_enade.txt",
-            "notas unicamp dentro do enade".strip().upper(),
-            result_3
-        )
+        ## 3. Notas dos cursos avaliados pelo enade da unicamp
+        #cur.execute("""
+        #SELECT 
+            #i.nome_ies,
+            #c.nome_curso,
+            #a.ano,
+            #e.nota_enade_continua
+        #FROM enade e
+            #JOIN ano a ON e.id_enade = a.id_enade
+            #JOIN curso c ON a.id_curso = c.id_curso
+            #JOIN ies i ON i.id_ies = c.id_ies
+        #WHERE 
+            #i.nome_ies ILIKE '%campinas%'
+            #AND i.nome_ies ILIKE '%estadual%'
+        #GROUP BY c.nome_curso, a.ano, e.nota_enade_continua, i.nome_ies
+        #ORDER BY i.nome_ies, c.nome_curso, a.ano;
+        #""")
+        #result_3 = cur.fetchall()
+        #write_results_to_file(
+            #"notas_da_unicamp_enade.txt",
+            #"notas unicamp dentro do enade".strip().upper(),
+            #result_3
+        #)
 
-        # 4. Média SAEB por município
-        cur.execute("""
-            SELECT 
-                m.nome_municipio,
-                m.media_saeb
-            FROM municipio m
-            ORDER BY m.media_saeb DESC;
-        """)
-        result_4 = cur.fetchall()
-        write_results_to_file(
-            "media_saeb_municipio.txt",
-            "media saeb por municipio".strip().upper(),
-            result_4
-        )
+        ## 4. Média SAEB por município
+        #cur.execute("""
+            #SELECT 
+                #m.nome_municipio,
+                #m.media_saeb
+            #FROM municipio m
+            #ORDER BY m.media_saeb DESC;
+        #""")
+        #result_4 = cur.fetchall()
+        #write_results_to_file(
+            #"media_saeb_municipio.txt",
+            #"media saeb por municipio".strip().upper(),
+            #result_4
+        #)
 
-        # 5. Número de escolas por rede e UF
-        cur.execute("""
-            SELECT 
-                uf.nome AS nome_uf,
-                e.rede,
-                COUNT(*) AS total_escolas
-            FROM escola e
-            JOIN municipio m ON e.id_municipio = m.id_municipio
-            JOIN uf ON m.id_uf = uf.id
-            GROUP BY uf.nome, e.rede
-            ORDER BY uf.nome, total_escolas DESC;
-        """)
-        result_5 = cur.fetchall()
-        write_results_to_file(
-            "numero_escolas_rede_uf.txt",
-            "Número de escolas por rede e UF".strip().upper(),
-            result_5
-        )
+        ## 5. Número de escolas por rede e UF
+        #cur.execute("""
+            #SELECT 
+                #uf.nome AS nome_uf,
+                #e.rede,
+                #COUNT(*) AS total_escolas
+            #FROM escola e
+            #JOIN municipio m ON e.id_municipio = m.id_municipio
+            #JOIN uf ON m.id_uf = uf.id
+            #GROUP BY uf.nome, e.rede
+            #ORDER BY uf.nome, total_escolas DESC;
+        #""")
+        #result_5 = cur.fetchall()
+        #write_results_to_file(
+            #"numero_escolas_rede_uf.txt",
+            #"Número de escolas por rede e UF".strip().upper(),
+            #result_5
+        #)
 
-        # 6. Cursos de ciência da computação com maior conceito enade
-        cur.execute(
-            '''
-            SELECT 
-                ies.nome_ies,
-                curso.nome_curso,
-                AVG(enade.nota_enade_continua) AS media_enade
-            FROM ano
-                JOIN curso ON ano.id_curso = curso.id_curso
-                JOIN ies ON ies.id_ies = curso.id_ies
-                JOIN enade ON ano.id_enade = enade.id_enade
-            WHERE  
-                curso.id_curso IS NOT NULL 
-                AND ies.id_ies IS NOT NULL
-                AND enade.id_enade IS NOT NULL
-                AND curso.nome_curso ILIKE '%computação%'
-            GROUP BY
-                ies.nome_ies, curso.nome_curso
-            ORDER BY
-                media_enade DESC;
-            '''
-        )
-        result_6 = cur.fetchall()
-        write_results_to_file(
-            "melhores_escola_comp.txt",
-            "melhores escolas de computação".strip().upper(),
-            result_6
-        )
+        ## 6. Cursos de ciência da computação com maior conceito enade
+        #cur.execute(
+            #'''
+            #SELECT 
+                #ies.nome_ies,
+                #curso.nome_curso,
+                #AVG(enade.nota_enade_continua) AS media_enade
+            #FROM ano
+                #JOIN curso ON ano.id_curso = curso.id_curso
+                #JOIN ies ON ies.id_ies = curso.id_ies
+                #JOIN enade ON ano.id_enade = enade.id_enade
+            #WHERE  
+                #curso.id_curso IS NOT NULL 
+                #AND ies.id_ies IS NOT NULL
+                #AND enade.id_enade IS NOT NULL
+                #AND curso.nome_curso ILIKE '%computação%'
+            #GROUP BY
+                #ies.nome_ies, curso.nome_curso
+            #ORDER BY
+                #media_enade DESC;
+            #'''
+        #)
+        #result_6 = cur.fetchall()
+        #write_results_to_file(
+            #"melhores_escola_comp.txt",
+            #"melhores escolas de computação".strip().upper(),
+            #result_6
+        #)
 
         #cur.close()
         #conn.close()
