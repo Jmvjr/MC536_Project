@@ -1,9 +1,10 @@
 import pandas as pd
 from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+# Correção da importação depreciada
+from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 import psycopg2
 import os
+import traceback
 # Comentarios sobre mudanças a fazer no codigo:
 # [] Dentro da definicao da classe Municipio existe um TO-DO.
 
@@ -62,6 +63,8 @@ class Escola(Base):
     rede         = Column(String(100), nullable=False)
     
     escola_to_municipio = relationship("Municipio", back_populates="municipio_to_escola")
+    escola_to_ideb      = relationship("IDEB", back_populates="ideb_to_escola")
+    escola_to_saeb      = relationship("SAEB", back_populates="saeb_to_escola")
 class IES(Base):
     __tablename__ = 'ies'
     
@@ -83,49 +86,40 @@ class Curso(Base):
     nome            = Column(String(100), nullable=False)
     
     curso_to_ies     = relationship("IES", back_populates="ies_to_curso")
-    curso_to_ano     = relationship("ANO", back_populates="ano_to_curso")
+    curso_to_enade   = relationship("ENADE", back_populates="enade_to_curso")
 
 class IDEB(Base):
     __tablename__ = 'ideb'
     
     id          = Column(Integer, primary_key=True, autoincrement=True)
+    id_escola   = Column(Integer, ForeignKey('escola.id'), nullable=False)
+    ano         = Column(Integer, nullable=False)
     rend_1      = Column(Float)
     rend_2      = Column(Float)
     rend_3      = Column(Float)
     rend_4      = Column(Float)
     nota        = Column(Float)
 
-    ideb_to_ano = relationship("ANO", back_populates="ano_to_ideb") 
+    ideb_to_escola = relationship("Escola", back_populates="escola_to_ideb") 
 
 class SAEB(Base):
     __tablename__ = 'saeb'
     
     id          = Column(Integer, primary_key=True, autoincrement=True)
+    id_escola   = Column(Integer, ForeignKey('escola.id'), nullable=False)
+    ano         = Column(Integer, nullable=False)
     nota_mat    = Column(Float)
     nota_port   = Column(Float)
     nota_padrao = Column(Float)
     
-    saeb_to_ano = relationship("ANO", back_populates="ano_to_saeb")
-
-class ANO(Base):
-    __tablename__ = 'ano'
-    
-    id          = Column(Integer, primary_key=True, autoincrement=True)
-    ano         = Column(Integer, nullable=False)
-    id_enade    = Column(Integer, ForeignKey('enade.id'), nullable=True)
-    id_ideb     = Column(Integer, ForeignKey('ideb.id'), nullable=True)
-    id_saeb     = Column(Integer, ForeignKey('saeb.id'), nullable=True)
-    id_curso    = Column(Integer, ForeignKey('curso.id'), nullable=True)
-    
-    ano_to_enade = relationship("ENADE", back_populates="enade_to_ano")
-    ano_to_ideb  = relationship("IDEB", back_populates="ideb_to_ano")
-    ano_to_saeb  = relationship("SAEB", back_populates="saeb_to_ano")
-    ano_to_curso = relationship("Curso", back_populates="curso_to_ano")
+    saeb_to_escola = relationship("Escola", back_populates="escola_to_saeb")
 
 class ENADE(Base):
     __tablename__ = 'enade'
     
     id                  = Column(Integer, primary_key=True, autoincrement=True)
+    id_curso            = Column(Integer, ForeignKey('curso.id'), nullable=False)
+    ano                 = Column(Integer, nullable=False)
     total_inscritos     = Column(Integer)
     total_concluintes   = Column(Integer)
     nota_bruta_ce       = Column(Float)
@@ -135,7 +129,7 @@ class ENADE(Base):
     nota_enade_continua = Column(Float)
     nota_enade_faixa    = Column(Float)
     
-    enade_to_ano = relationship("ANO", back_populates="ano_to_enade")
+    enade_to_curso = relationship("Curso", back_populates="curso_to_enade")
 
 # Function to create the database and tables
 '''
@@ -149,10 +143,25 @@ def create_database():
     # Create engine
     engine = create_engine(connection_string)
     
+    print("Removendo todas as tabelas existentes...")
     # Create all tables
     drop_all_with_cascade(engine)
+    
+    print("Criando novas tabelas...")
     Base.metadata.create_all(engine)    # Create tables
     
+    print("Verificando se as tabelas foram criadas corretamente...")
+    # Verificar se a tabela enade foi criada com as colunas corretas
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'enade'"))
+        columns = [row[0] for row in result]
+        print(f"Colunas da tabela enade: {columns}")
+        
+        if 'id_curso' not in columns:
+            print("ERRO: Coluna id_curso não encontrada na tabela enade!")
+            raise Exception("Esquema da tabela enade incorreto")
+    
+    print("Tabelas criadas com sucesso!")
     return engine
 
 def drop_all_with_cascade(engine):
@@ -170,6 +179,7 @@ def drop_all_with_cascade(engine):
                 '''
             )
         )
+        conn.commit()
 
 '''
 Funcao que retorna o nome da UF a partir da sua sigla.
@@ -304,12 +314,14 @@ def import_csv_enade(engine):
         print("Inserindo UFs...")
         for sigla_uf in df['Sigla da UF'].unique():
             # Verificar se UF já existe
-            uf_obj = UF(
-                nome=get_uf_full_name(sigla_uf),
-                sigla=sigla_uf
-            )
-            session.add(uf_obj)
-            session.flush()
+            uf_obj = session.query(UF).filter_by(sigla=sigla_uf).first()
+            if not uf_obj:
+                uf_obj = UF(
+                    nome=get_uf_full_name(sigla_uf),
+                    sigla=sigla_uf
+                )
+                session.add(uf_obj)
+                session.flush()
             uf_ids[sigla_uf] = uf_obj.id
         
         # 2. Inserir Municípios
@@ -319,14 +331,24 @@ def import_csv_enade(engine):
             nome_municipio = row['Município do Curso']
             sigla_uf = row['Sigla da UF']
             
-            municipio_obj = Municipio(
-                id_uf=uf_ids[sigla_uf],
+            # Chave composta para identificar o município
+            municipio_key = f"{nome_municipio}_{sigla_uf}"
+            
+            # Verificar se já existe
+            municipio_obj = session.query(Municipio).filter_by(
                 nome=nome_municipio,
-            )
-            session.add(municipio_obj)
-            session.flush()
-            # Usar um composto de cidade+UF como chave já que pode haver cidades homônimas
-            municipio_ids[f"{nome_municipio}_{sigla_uf}"] = municipio_obj.id
+                id_uf=uf_ids[sigla_uf]
+            ).first()
+            
+            if not municipio_obj:
+                municipio_obj = Municipio(
+                    id_uf=uf_ids[sigla_uf],
+                    nome=nome_municipio,
+                )
+                session.add(municipio_obj)
+                session.flush()
+            
+            municipio_ids[municipio_key] = municipio_obj.id
         
         # 3. Inserir IES
         print("Inserindo IES...")
@@ -382,12 +404,20 @@ def import_csv_enade(engine):
             
             # Verificar se existe a combinação IES-município
             if (cod_ies, municipio_key) in ies_ids:
-                curso_obj = Curso(
+                # Verificar se o curso já existe
+                curso_obj = session.query(Curso).filter_by(
                     id_ies=ies_ids[(cod_ies, municipio_key)],
                     nome=nome_curso
-                )
-                session.add(curso_obj)
-                session.flush()
+                ).first()
+                
+                if not curso_obj:
+                    curso_obj = Curso(
+                        id_ies=ies_ids[(cod_ies, municipio_key)],
+                        nome=nome_curso
+                    )
+                    session.add(curso_obj)
+                    session.flush()
+                
                 curso_ids[cod_curso] = curso_obj.id
         
         # 5. Inserir dados ENADE
@@ -407,6 +437,8 @@ def import_csv_enade(engine):
                     
                     # Dados do ENADE com conversão segura
                     enade_obj = ENADE(
+                        id_curso=curso_ids[cod_curso],
+                        ano=ano_enade,
                         total_inscritos=int(row['Nº de Concluintes Inscritos']),
                         total_concluintes=int(row['Nº  de Concluintes Participantes']),
                         nota_bruta_fg=convert_to_float(row['Nota Bruta - FG']),
@@ -419,14 +451,6 @@ def import_csv_enade(engine):
                     session.add(enade_obj)
                     session.flush()
                     
-                    # Criar entrada na tabela ANO
-                    ano_obj = ANO(
-                        ano=ano_enade,
-                        id_enade=enade_obj.id,
-                        id_curso=curso_ids[cod_curso]
-                    )
-                    session.add(ano_obj)
-                    session.flush()
                     enade_ids[(cod_curso, ano_enade)] = enade_obj.id
             except Exception as e:
                 print(f"Erro ao processar linha com código de curso {row.get('Código do Curso', 'N/A')}: {e}")
@@ -480,10 +504,7 @@ def import_csv_ideb(engine):
             # Verificar se é NaN
             if pd.isna(sigla_uf) or sigla_uf == 'nan':
                 continue
-            
-            # Garantir que sigla_uf é uma string
             sigla_uf = str(sigla_uf).strip()
-            
             # Verificar se UF já existe na sessão
             uf_obj = session.query(UF).filter_by(sigla=sigla_uf).first()
             if not uf_obj:
@@ -594,6 +615,8 @@ def import_csv_ideb(engine):
                     if any([nota_ideb is not None, nota_padrao is not None]):
                         # 4.1 Inserir IDEB
                         ideb_obj = IDEB(
+                            id_escola=escola_ids[codigo_escola],
+                            ano=ano,
                             rend_1=rend_1,
                             rend_2=rend_2,
                             rend_3=rend_3,
@@ -605,20 +628,13 @@ def import_csv_ideb(engine):
                         
                         # 4.2 Inserir SAEB
                         saeb_obj = SAEB(
+                            id_escola=escola_ids[codigo_escola],
+                            ano=ano,
                             nota_mat=nota_mat,
                             nota_port=nota_port,
                             nota_padrao=nota_padrao
                         )
                         session.add(saeb_obj)
-                        session.flush()
-                        
-                        # 4.3 Criar entrada na tabela ANO conectando com a escola
-                        ano_obj = ANO(
-                            ano=ano,
-                            id_ideb=ideb_obj.id,
-                            id_saeb=saeb_obj.id
-                        )
-                        session.add(ano_obj)
                         session.flush()
                         
                         # Guardar os IDs para referência futura
@@ -728,16 +744,15 @@ if __name__ == "__main__":
         cur.execute("""
             SELECT 
                 uf.nome AS nome_uf,
-                a.ano,
+                e.ano,
                 AVG(e.nota_enade_continua) AS media_nota_enade
             FROM enade e
-            JOIN ano a ON e.id = a.id_enade
-            JOIN curso c ON a.id_curso = c.id
+            JOIN curso c ON e.id_curso = c.id
             JOIN ies i ON c.id_ies = i.id
             JOIN municipio m ON i.id_municipio = m.id
             JOIN uf ON m.id_uf = uf.id
-            GROUP BY uf.nome, a.ano
-            ORDER BY a.ano, media_nota_enade DESC;
+            GROUP BY uf.nome, e.ano
+            ORDER BY e.ano, media_nota_enade DESC;
         """)
         result_1 = cur.fetchall()
         write_results_to_file(
@@ -749,13 +764,12 @@ if __name__ == "__main__":
         # 2. Top 5 notas SAEB 2023
         cur.execute("""
             SELECT 
-                a.ano,
+                s.ano,
                 s.nota_mat,
                 s.nota_port,
                 (s.nota_mat + s.nota_port)/2 AS media
             FROM saeb AS s
-            JOIN ano AS a ON s.id = a.id_saeb
-            WHERE a.ano = 2023
+            WHERE s.ano = 2023
                 AND s.nota_mat IS NOT NULL
                 AND s.nota_port IS NOT NULL
             ORDER BY media DESC
@@ -773,17 +787,16 @@ if __name__ == "__main__":
         SELECT 
             i.nome AS nome_ies,
             c.nome AS nome_curso,
-            a.ano,
+            e.ano,
             e.nota_enade_continua
         FROM enade e
-            JOIN ano a ON e.id = a.id_enade
-            JOIN curso c ON a.id_curso = c.id
+            JOIN curso c ON e.id_curso = c.id
             JOIN ies i ON i.id = c.id_ies
         WHERE 
             i.nome ILIKE '%campinas%'
             AND i.nome ILIKE '%estadual%'
-        GROUP BY c.nome, a.ano, e.nota_enade_continua, i.nome
-        ORDER BY i.nome, c.nome, a.ano;
+        GROUP BY c.nome, e.ano, e.nota_enade_continua, i.nome
+        ORDER BY i.nome, c.nome, e.ano;
         """)
         result_3 = cur.fetchall()
         write_results_to_file(
@@ -799,8 +812,8 @@ if __name__ == "__main__":
                 AVG(s.nota_padrao) AS media_saeb
             FROM municipio m
             JOIN escola e ON e.id_municipio = m.id
-            JOIN ano a ON a.id_saeb IS NOT NULL
-            JOIN saeb s ON s.id = a.id_saeb
+            JOIN saeb s ON s.id_escola = e.id
+            WHERE s.nota_padrao IS NOT NULL
             GROUP BY m.nome
             ORDER BY media_saeb DESC;
         """)
@@ -837,10 +850,9 @@ if __name__ == "__main__":
                 ies.nome AS nome_ies,
                 curso.nome AS nome_curso,
                 AVG(enade.nota_enade_continua) AS media_enade
-            FROM ano
-                JOIN curso ON ano.id_curso = curso.id
+            FROM enade
+                JOIN curso ON enade.id_curso = curso.id
                 JOIN ies ON ies.id = curso.id_ies
-                JOIN enade ON ano.id_enade = enade.id
             WHERE  
                 curso.id IS NOT NULL 
                 AND ies.id IS NOT NULL
