@@ -27,7 +27,7 @@ class UF(Base):
     __tablename__ = 'uf'
     
     id          = Column(Integer, primary_key=True, autoincrement=True)
-    sigla_uf    = Column(String(2), nullable=False, unique=True)
+    sigla    = Column(String(2), nullable=False, unique=True)
     nome        = Column(String(100), nullable=False, unique=True)
     
     uf_to_municipio  = relationship("Municipio", back_populates="municipio_to_uf")
@@ -58,12 +58,10 @@ class Escola(Base):
     id           = Column(Integer, primary_key=True, autoincrement=True)
     id_municipio = Column(Integer, ForeignKey('municipio.id'), nullable=False)
     nome         = Column(String(100), nullable=False)
-    cod          = Column(Integer, unique=True, nullable=False)
+    codigo       = Column(Integer, unique=True, nullable=False)
     rede         = Column(String(100), nullable=False)
     
     escola_to_municipio = relationship("Municipio", back_populates="municipio_to_escola")
-    escola_to_ideb      = relationship("IDEB", back_populates="ideb_to_escola")
-    escola_to_saeb      = relationship("SAEB", back_populates="saeb_to_escola")
 class IES(Base):
     __tablename__ = 'ies'
     
@@ -85,39 +83,49 @@ class Curso(Base):
     nome            = Column(String(100), nullable=False)
     
     curso_to_ies     = relationship("IES", back_populates="ies_to_curso")
-    curso_to_enade   = relationship("ENADE", back_populates="enade_to_curso")
+    curso_to_ano     = relationship("ANO", back_populates="ano_to_curso")
 
 class IDEB(Base):
     __tablename__ = 'ideb'
     
-    id          = Column(Integer, primary_key=True)
-    ano         = Column(Integer, nullable=False)
+    id          = Column(Integer, primary_key=True, autoincrement=True)
     rend_1      = Column(Float)
     rend_2      = Column(Float)
     rend_3      = Column(Float)
     rend_4      = Column(Float)
-    ind_rend    = Column(Float) # Isso deve ser mantido?
-    nota_ideb   = Column(Float)
+    nota        = Column(Float)
 
-    ideb_to_escola = relationship("Escola", back_populates="escola_to_ideb") 
+    ideb_to_ano = relationship("ANO", back_populates="ano_to_ideb") 
 
 class SAEB(Base):
     __tablename__ = 'saeb'
     
-    id          = Column(Integer, primary_key=True)
-    id_escola   = Column(Integer, ForeignKey('escola.id'), nullable=False)
-    ano         = Column(Integer, nullable=False)
+    id          = Column(Integer, primary_key=True, autoincrement=True)
     nota_mat    = Column(Float)
     nota_port   = Column(Float)
     nota_padrao = Column(Float)
     
-    saeb_to_escola = relationship("Escola", back_populates="escola_to_saeb")
+    saeb_to_ano = relationship("ANO", back_populates="ano_to_saeb")
+
+class ANO(Base):
+    __tablename__ = 'ano'
+    
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    ano         = Column(Integer, nullable=False)
+    id_enade    = Column(Integer, ForeignKey('enade.id'), nullable=True)
+    id_ideb     = Column(Integer, ForeignKey('ideb.id'), nullable=True)
+    id_saeb     = Column(Integer, ForeignKey('saeb.id'), nullable=True)
+    id_curso    = Column(Integer, ForeignKey('curso.id'), nullable=True)
+    
+    ano_to_enade = relationship("ENADE", back_populates="enade_to_ano")
+    ano_to_ideb  = relationship("IDEB", back_populates="ideb_to_ano")
+    ano_to_saeb  = relationship("SAEB", back_populates="saeb_to_ano")
+    ano_to_curso = relationship("Curso", back_populates="curso_to_ano")
 
 class ENADE(Base):
     __tablename__ = 'enade'
     
-    id                  = Column(Integer, primary_key=True)
-    id_curso            = Column(Integer, ForeignKey('curso.id'), nullable=False)
+    id                  = Column(Integer, primary_key=True, autoincrement=True)
     total_inscritos     = Column(Integer)
     total_concluintes   = Column(Integer)
     nota_bruta_ce       = Column(Float)
@@ -127,7 +135,7 @@ class ENADE(Base):
     nota_enade_continua = Column(Float)
     nota_enade_faixa    = Column(Float)
     
-    enado_to_curso      = relationship("Curso", back_populates="curso_to_enade")
+    enade_to_ano = relationship("ANO", back_populates="ano_to_enade")
 
 # Function to create the database and tables
 '''
@@ -318,7 +326,7 @@ def import_csv_enade(engine):
             session.add(municipio_obj)
             session.flush()
             # Usar um composto de cidade+UF como chave já que pode haver cidades homônimas
-            municipio_ids[f"{nome_municipio}_{sigla_uf}"] = municipio_obj.id_municipio
+            municipio_ids[f"{nome_municipio}_{sigla_uf}"] = municipio_obj.id
         
         # 3. Inserir IES
         print("Inserindo IES...")
@@ -343,17 +351,23 @@ def import_csv_enade(engine):
             municipio_key = f"{row['Município do Curso']}_{row['Sigla da UF']}"
             
             if municipio_key in municipio_ids:
-                ies_obj = IES(
-                    id_municipio=municipio_ids[municipio_key],
-                    nome=nome_ies,
-                    sigla=sigla_ies,
-                    codigo=cod_ies,
-                    rede=categoria
-                )
-                session.add(ies_obj)
-                session.flush()
-                # Usar uma chave composta para rastrear IES por código e município
-                ies_ids[(cod_ies, municipio_key)] = ies_obj.id_ies
+                # Verificar se a IES já existe com o mesmo código
+                existing_ies = session.query(IES).filter_by(codigo=cod_ies).first()
+                if not existing_ies:
+                    ies_obj = IES(
+                        id_municipio=municipio_ids[municipio_key],
+                        nome=nome_ies,
+                        sigla=sigla_ies,
+                        codigo=cod_ies,
+                        rede=categoria
+                    )
+                    session.add(ies_obj)
+                    session.flush()
+                    # Usar uma chave composta para rastrear IES por código e município
+                    ies_ids[(cod_ies, municipio_key)] = ies_obj.id
+                else:
+                    # Se já existe, usar o ID existente
+                    ies_ids[(cod_ies, municipio_key)] = existing_ies.id
             else:
                 print(f"Chave não encontrada: {municipio_key}")
         
@@ -374,7 +388,7 @@ def import_csv_enade(engine):
                 )
                 session.add(curso_obj)
                 session.flush()
-                curso_ids[cod_curso] = curso_obj.id_curso
+                curso_ids[cod_curso] = curso_obj.id
         
         # 5. Inserir dados ENADE
         print("Inserindo dados ENADE...")
@@ -400,12 +414,20 @@ def import_csv_enade(engine):
                         nota_bruta_ce=convert_to_float(row['Nota Bruta - CE']),
                         nota_padronizada_ce=convert_to_float(row['Nota Padronizada - CE']),
                         nota_enade_continua=convert_to_float(row['Conceito Enade (Contínuo)']),
-                        nota_enade_faixa=convert_to_float(row['Conceito Enade (Faixa)']),
-                        ano = ano_enade
+                        nota_enade_faixa=convert_to_float(row['Conceito Enade (Faixa)'])
                     )
                     session.add(enade_obj)
                     session.flush()
-                    enade_ids[(cod_curso, ano_enade)] = enade_obj.id_enade
+                    
+                    # Criar entrada na tabela ANO
+                    ano_obj = ANO(
+                        ano=ano_enade,
+                        id_enade=enade_obj.id,
+                        id_curso=curso_ids[cod_curso]
+                    )
+                    session.add(ano_obj)
+                    session.flush()
+                    enade_ids[(cod_curso, ano_enade)] = enade_obj.id
             except Exception as e:
                 print(f"Erro ao processar linha com código de curso {row.get('Código do Curso', 'N/A')}: {e}")
                 continue
@@ -485,7 +507,7 @@ def import_csv_ideb(engine):
             
             # Verificar se já existe
             municipio_obj = session.query(Municipio).filter_by(
-                nome_municipio=nome_municipio,
+                nome=nome_municipio,
                 id_uf=uf_ids[sigla_uf]
             ).first()
             
@@ -497,7 +519,7 @@ def import_csv_ideb(engine):
                 session.add(municipio_obj)
                 session.flush()
             
-            municipio_ids[municipio_key] = municipio_obj.id_municipio
+            municipio_ids[municipio_key] = municipio_obj.id
         
         # 3. Inserir Escolas
         print("Processando Escolas em import_csv_ideb...")
@@ -516,18 +538,18 @@ def import_csv_ideb(engine):
             
             if municipio_key in municipio_ids:
                 # Verificar se a escola já existe
-                escola_obj = session.query(Escola).filter_by(cod_escola=codigo_escola).first()
+                escola_obj = session.query(Escola).filter_by(codigo=codigo_escola).first()
                 if not escola_obj:
                     escola_obj = Escola(
                         id_municipio=municipio_ids[municipio_key],
                         nome=nome_escola,
-                        cod=codigo_escola,
+                        codigo=codigo_escola,
                         rede=rede
                     )
                     session.add(escola_obj)
                     session.flush()
                 
-                escola_ids[codigo_escola] = escola_obj.id_escola
+                escola_ids[codigo_escola] = escola_obj.id
         
         # Adicione esta função de conversão
         def convert_to_float_or_none(value):
@@ -576,9 +598,7 @@ def import_csv_ideb(engine):
                             rend_2=rend_2,
                             rend_3=rend_3,
                             rend_4=rend_4,
-                            nota=nota_ideb,
-                            ano=ano,
-                            id_escola=escola_ids[codigo_escola]
+                            nota=nota_ideb
                         )
                         session.add(ideb_obj)
                         session.flush()
@@ -587,16 +607,23 @@ def import_csv_ideb(engine):
                         saeb_obj = SAEB(
                             nota_mat=nota_mat,
                             nota_port=nota_port,
-                            nota_padrao=nota_padrao,
-                            ano=ano,
-                            id_escola=escola_ids[codigo_escola]
+                            nota_padrao=nota_padrao
                         )
                         session.add(saeb_obj)
                         session.flush()
                         
+                        # 4.3 Criar entrada na tabela ANO conectando com a escola
+                        ano_obj = ANO(
+                            ano=ano,
+                            id_ideb=ideb_obj.id,
+                            id_saeb=saeb_obj.id
+                        )
+                        session.add(ano_obj)
+                        session.flush()
+                        
                         # Guardar os IDs para referência futura
-                        ideb_ids[(codigo_escola, ano)] = ideb_obj.id_ideb
-                        saeb_ids[(codigo_escola, ano)] = saeb_obj.id_saeb
+                        ideb_ids[(codigo_escola, ano)] = ideb_obj.id
+                        saeb_ids[(codigo_escola, ano)] = saeb_obj.id
                     
                 except Exception as e:
                     print(f"Erro ao processar dados do ano {ano} para escola {codigo_escola}: {e}")
@@ -704,10 +731,10 @@ if __name__ == "__main__":
                 a.ano,
                 AVG(e.nota_enade_continua) AS media_nota_enade
             FROM enade e
-            JOIN ano a ON e.id_enade = a.id_enade
-            JOIN curso c ON a.id_curso = c.id_curso
-            JOIN ies i ON c.id_ies = i.id_ies
-            JOIN municipio m ON i.id_municipio = m.id_municipio
+            JOIN ano a ON e.id = a.id_enade
+            JOIN curso c ON a.id_curso = c.id
+            JOIN ies i ON c.id_ies = i.id
+            JOIN municipio m ON i.id_municipio = m.id
             JOIN uf ON m.id_uf = uf.id
             GROUP BY uf.nome, a.ano
             ORDER BY a.ano, media_nota_enade DESC;
@@ -727,8 +754,7 @@ if __name__ == "__main__":
                 s.nota_port,
                 (s.nota_mat + s.nota_port)/2 AS media
             FROM saeb AS s
-            JOIN ano AS a 
-                ON s.id_saeb = a.id_saeb
+            JOIN ano AS a ON s.id = a.id_saeb
             WHERE a.ano = 2023
                 AND s.nota_mat IS NOT NULL
                 AND s.nota_port IS NOT NULL
@@ -745,19 +771,19 @@ if __name__ == "__main__":
         # 3. Notas dos cursos avaliados pelo enade da unicamp
         cur.execute("""
         SELECT 
-            i.nome_ies,
-            c.nome_curso,
+            i.nome AS nome_ies,
+            c.nome AS nome_curso,
             a.ano,
             e.nota_enade_continua
         FROM enade e
-            JOIN ano a ON e.id_enade = a.id_enade
-            JOIN curso c ON a.id_curso = c.id_curso
-            JOIN ies i ON i.id_ies = c.id_ies
+            JOIN ano a ON e.id = a.id_enade
+            JOIN curso c ON a.id_curso = c.id
+            JOIN ies i ON i.id = c.id_ies
         WHERE 
-            i.nome_ies ILIKE '%campinas%'
-            AND i.nome_ies ILIKE '%estadual%'
-        GROUP BY c.nome_curso, a.ano, e.nota_enade_continua, i.nome_ies
-        ORDER BY i.nome_ies, c.nome_curso, a.ano;
+            i.nome ILIKE '%campinas%'
+            AND i.nome ILIKE '%estadual%'
+        GROUP BY c.nome, a.ano, e.nota_enade_continua, i.nome
+        ORDER BY i.nome, c.nome, a.ano;
         """)
         result_3 = cur.fetchall()
         write_results_to_file(
@@ -766,13 +792,17 @@ if __name__ == "__main__":
             result_3
         )
 
-        # 4. Média SAEB por município
+        # 4. Média SAEB por município - this query needs to be recalculated from the data
         cur.execute("""
             SELECT 
-                m.nome_municipio,
-                m.media_saeb
+                m.nome AS nome_municipio,
+                AVG(s.nota_padrao) AS media_saeb
             FROM municipio m
-            ORDER BY m.media_saeb DESC;
+            JOIN escola e ON e.id_municipio = m.id
+            JOIN ano a ON a.id_saeb IS NOT NULL
+            JOIN saeb s ON s.id = a.id_saeb
+            GROUP BY m.nome
+            ORDER BY media_saeb DESC;
         """)
         result_4 = cur.fetchall()
         write_results_to_file(
@@ -788,7 +818,7 @@ if __name__ == "__main__":
                 e.rede,
                 COUNT(*) AS total_escolas
             FROM escola e
-            JOIN municipio m ON e.id_municipio = m.id_municipio
+            JOIN municipio m ON e.id_municipio = m.id
             JOIN uf ON m.id_uf = uf.id
             GROUP BY uf.nome, e.rede
             ORDER BY uf.nome, total_escolas DESC;
@@ -804,20 +834,20 @@ if __name__ == "__main__":
         cur.execute(
             '''
             SELECT 
-                ies.nome_ies,
-                curso.nome_curso,
+                ies.nome AS nome_ies,
+                curso.nome AS nome_curso,
                 AVG(enade.nota_enade_continua) AS media_enade
             FROM ano
-                JOIN curso ON ano.id_curso = curso.id_curso
-                JOIN ies ON ies.id_ies = curso.id_ies
-                JOIN enade ON ano.id_enade = enade.id_enade
+                JOIN curso ON ano.id_curso = curso.id
+                JOIN ies ON ies.id = curso.id_ies
+                JOIN enade ON ano.id_enade = enade.id
             WHERE  
-                curso.id_curso IS NOT NULL 
-                AND ies.id_ies IS NOT NULL
-                AND enade.id_enade IS NOT NULL
-                AND curso.nome_curso ILIKE '%computação%'
+                curso.id IS NOT NULL 
+                AND ies.id IS NOT NULL
+                AND enade.id IS NOT NULL
+                AND curso.nome ILIKE '%computação%'
             GROUP BY
-                ies.nome_ies, curso.nome_curso
+                ies.nome, curso.nome
             ORDER BY
                 media_enade DESC;
             '''
