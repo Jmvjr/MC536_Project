@@ -1,5 +1,6 @@
 import pandas as pd
 from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, text
+from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 # Correção da importação depreciada
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 import psycopg2
@@ -21,9 +22,13 @@ enade_2021  = os.path.join(data_dir, 'conceito_enade_2021.csv')
 enade_2022  = os.path.join(data_dir, 'conceito_enade_2022.csv')
 enade_2023  = os.path.join(data_dir, 'conceito_enade_2023.csv')
 ideb        = os.path.join(data_dir, 'ideb_saeb_2017_2019_2021_2023.csv')
+ID_GENERATOR = 0
 
 # Criando as classes através da ORM
 class UF(Base):
+    def __str__(self):
+        return f'id:{id}\n sigla:{self.sigla}\n nome:{self.nome}'
+
     __tablename__ = 'uf'
     
     id          = Column(Integer, primary_key=True, autoincrement=True)
@@ -129,7 +134,6 @@ class ENADE(Base):
     nota_enade_faixa    = Column(Float)
     
     enade_to_curso = relationship("Curso", back_populates="curso_to_enade")
-
 # Function to create the database and tables
 '''
 Funcao que cria as databases, necessita da connection_string para
