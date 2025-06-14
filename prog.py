@@ -4,7 +4,6 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 import psycopg2
 import os
-import traceback
 # Comentarios sobre mudanças a fazer no codigo:
 # [] Dentro da definicao da classe Municipio existe um TO-DO.
 
@@ -469,8 +468,6 @@ def import_csv_enade(engine):
         # Em caso de erro, reverter alterações
         session.rollback()
         print(f"Erro durante a inserção: {str(e)}")
-        import traceback
-        traceback.print_exc()
     finally:
         # Fechar a sessão
         session.close()
@@ -697,8 +694,6 @@ def import_csv_ideb(engine):
         # Em caso de erro, reverter alterações
         session.rollback()
         print(f"Erro durante a inserção: {str(e)}")
-        import traceback
-        traceback.print_exc()
     finally:
         # Fechar a sessão
         session.close()
